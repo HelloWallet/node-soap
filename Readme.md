@@ -1,4 +1,4 @@
-# Soap [![NPM version][npm-image]][npm-url] [![Downloads][downloads-image]][npm-url] [![Build Status][travis-image]][travis-url] [![Gitter chat][gitter-image]][gitter-url]
+# Soap [![NPM version][npm-image]][npm-url] [![Downloads][downloads-image]][npm-url] [![Build Status][travis-image]][travis-url] [![Coveralls Status][coveralls-image]][coveralls-url] [![Gitter chat][gitter-image]][gitter-url]
 
 > A SOAP client and server for node.js.
 
@@ -51,6 +51,8 @@ The `options` argument allows you to customize the client with the following pro
 - request: to override the [request](https://github.com/request/request) module.
 - httpClient: to provide your own http client that implements `request(rurl, data, callback, exheaders, exoptions)`.
 - forceSoap12Headers: to set proper headers for SOAP v1.2
+- wsdl_options: custom options for the request module on WSDL requests.
+- wsdl_headers: custom HTTP headers to be sent on WSDL requests.
 
 ### soap.listen(*server*, *path*, *services*, *wsdl*) - create a new SOAP server that listens on *path* and provides *services*.
 *wsdl* is an xml string that defines the service.
@@ -70,7 +72,7 @@ The `options` argument allows you to customize the client with the following pro
                   // do some work
                   callback({
                       name: args.name
-                  })
+                  });
               },
 
               // This is how to receive incoming headers
@@ -78,26 +80,46 @@ The `options` argument allows you to customize the client with the following pro
                   return {
                       name: headers.Token
                   };
-              }
+              },
 
               // You can also inspect the original `req`
               reallyDeatailedFunction: function(args, cb, headers, req) {
-                  console.log('SOAP `reallyDeatailedFunction` request from ' + req.connection.remoteAddress)
+                  console.log('SOAP `reallyDeatailedFunction` request from ' + req.connection.remoteAddress);
                   return {
                       name: headers.Token
                   };
               }
           }
       }
-  }
+  };
 
   var xml = require('fs').readFileSync('myservice.wsdl', 'utf8'),
       server = http.createServer(function(request,response) {
-          response.end("404: Not Found: "+request.url)
+          response.end("404: Not Found: " + request.url);
       });
 
   server.listen(8000);
   soap.listen(server, '/wsdl', myService, xml);
+```
+
+### Options
+You can pass in server and [WSDL Options](#handling-xml-attributes-value-and-xml-wsdloptions)
+using an options hash.
+
+``` javascript
+var xml = require('fs').readFileSync('myservice.wsdl', 'utf8');
+
+soap.listen(server, {
+    // Server options.
+    path: '/wsdl',
+    services: myService,
+    xml: xml,
+
+    // WSDL options.
+    attributesKey: 'theAttrs',
+    valueKey: 'theVal',
+    xmlKey: 'theXml'
+});
 ```
 
 ### Server Logging
@@ -156,7 +178,37 @@ To change the HTTP statusCode of the response include it on the fault.  The stat
   };
 ```
 
-### SOAP Headers
+### Server security example using PasswordDigest
+
+If `server.authenticate` is not defined then no authentication will take place.
+
+``` javascript
+  server = soap.listen(...)
+  server.authenticate = function(security) {
+    var created, nonce, password, user, token;
+    token = security.UsernameToken, user = token.Username,
+            password = token.Password, nonce = token.Nonce, created = token.Created;
+    return user === 'user' && password === soap.passwordDigest(nonce, created, 'password');
+  };
+```
+
+### Server connection authorization
+
+The `server.authorizeConnection` method is called prior to the soap service method.
+If the method is defined and returns `false` then the incoming connection is
+terminated.
+
+``` javascript
+  server = soap.listen(...)
+  server.authorizeConnection = function(req) {
+    return true; // or false
+  };
+```
+
+
+## SOAP Headers
+
+### Received SOAP Headers
 
 A service method can look at the SOAP headers by providing a 3rd arguments.
 
@@ -187,32 +239,32 @@ First parameter is the Headers object;
 second parameter is the name of the SOAP method that will called
 (in case you need to handle the headers differently based on the method).
 
-### Server security example using PasswordDigest
+### Outgoing SOAP Headers
 
-If `server.authenticate` is not defined then no authentication will take place.
+Both client & server can define SOAP headers that will be added to what they send.
+They provide the following methods to manage the headers.
 
-``` javascript
-  server = soap.listen(...)
-  server.authenticate = function(security) {
-    var created, nonce, password, user, token;
-    token = security.UsernameToken, user = token.Username,
-            password = token.Password, nonce = token.Nonce, created = token.Created;
-    return user === 'user' && password === soap.passwordDigest(nonce, created, 'password');
-  };
-```
 
-### Server connection authorization
+#### *addSoapHeader*(soapHeader[, name, namespace, xmlns]) - add soapHeader to soap:Header node
+##### Parameters
+ - `soapHeader`     Object({rootName: {name: "value"}}) or strict xml-string
 
-The `server.authorizeConnection` method is called prior to the soap service method.
-If the method is defined and returns `false` then the incoming connection is
-terminated.
+##### Returns
+The index where the header is inserted.
 
-``` javascript
-  server = soap.listen(...)
-  server.authorizeConnection = function(req) {
-    return true; // or false
-  };
-```
+##### Optional parameters when first arg is object :
+ - `name`           Unknown parameter (it could just a empty string)
+ - `namespace`      prefix of xml namespace
+ - `xmlns`          URI
+
+#### *changeSoapHeader*(index, soapHeader[, name, namespace, xmlns]) - change an already existing soapHeader
+##### Parameters
+ - `index`          index of the header to replace with provided new value
+ - `soapHeader`     Object({rootName: {name: "value"}}) or strict xml-string
+
+#### *getSoapHeaders*() - return all defined headers
+
+#### *clearSoapHeaders*() - remove all defined headers
 
 
 ## Client
@@ -271,6 +323,16 @@ as default request options to the constructor:
   client.setSecurity(new soap.WSSecurity('username', 'password'))
 ```
 
+####WSSecurity with X509 Certificate
+
+``` javascript
+  var privateKey = fs.readFileSync(privateKeyPath);
+  var publicKey = fs.readFileSync(publicKeyPath);
+  var password = ''; // optional password
+  var wsSecurity = new soap.WSSecurityCert(privateKey, publicKey, password, 'utf8');
+  client.setSecurity(wsSecurity);
+```
+
 ####BearerSecurity
 
 ``` javascript
@@ -302,6 +364,13 @@ as default request options to the constructor:
   }, {timeout: 5000})
 ```
 
+- Remove namespace prefix of param
+
+```javascript
+  client.MyService.MyPort.MyFunction({':name': 'value'}, function(err, result) {
+      // request body sent with `<name`, regardless of what the namespace should have been.
+  }, {timeout: 5000})
+```
 
 #### Options (optional)
  - Accepts any option that the request module accepts, see [here.](https://github.com/mikeal/request)
@@ -311,16 +380,6 @@ as default request options to the constructor:
       // result is a javascript object
   }, {timeout: 5000})
 ```
-
-### Client.*addSoapHeader*(soapHeader[, name, namespace, xmlns]) - add soapHeader to soap:Header node
-#### Options
-
- - `soapHeader`     Object({rootName: {name: "value"}}) or strict xml-string
-
-##### Optional parameters when first arg is object :
- - `name`           Unknown parameter (it could just a empty string)
- - `namespace`      prefix of xml namespace
- - `xmlns`          URI
 
 ### Client.*lastRequest* - the property that contains last full soap request for client logging
 
@@ -451,6 +510,27 @@ soap.createClient(__dirname + '/wsdl/default_namespace.wsdl', wsdlOptions, funct
   });
 });
 ```
+### Specifying the exact namespace definition of the root element
+In rare cases, you may want to precisely control the namespace definition that is included in the root element.
+
+You can specify the namespace definitions by setting the overrideRootElement key in the `wsdlOptions` like so:
+```javascript
+var wsdlOptions = {
+  "overrideRootElement": {
+    "namespace": "xmlns:tns",
+    "xmlnsAttributes": [{
+      "name": "xmlns:ns2",
+      "value": "http://tempuri.org/"
+    }, {
+      "name": "xmlns:ns3",
+      "value": "http://sillypets.com/xsd"
+    }]
+  }
+};
+```
+
+To see it in practice, consider the sample files in: [test/request-response-samples/addPets__force_namespaces](https://github.com/vpulim/node-soap/tree/master/test/request-response-samples/addPets__force_namespaces)
+
 
 ## Handling "ignored" namespaces
 If an Element in a `schema` definition depends on an Element which is present in the same namespace, normally the `tns:`
@@ -495,7 +575,7 @@ namespace prefix is used to identify this Element. This is not much of a problem
    }
  ```
  This would override the default `ignoredNamespaces` of the `WSDL` processor to `['namespaceToIgnore', 'someOtherNamespace']`. (This shouldn't be necessary, anyways).
- 
+
 ## Handling "ignoreBaseNameSpaces" attribute
 If an Element in a `schema` definition depends has a basenamespace defined but the request does not need that value, for example you have a "sentJob" with basenamespace "v20"
 but the request need only: <sendJob> set in the tree structure, you need to set the ignoreBaseNameSpaces to true. This is set because in a lot of workaround the wsdl structure is not correctly
@@ -560,12 +640,12 @@ describe('myService', function() {
   });
 });
 ```
- 
- 
+
+
 ## Contributors
 
  * Author: [Vinay Pulim](https://github.com/vpulim)
- * Maintainers: 
+ * Maintainers:
    - [Joe Spencer](https://github.com/jsdevel)
    - [Heinz Romirer](https://github.com/herom)
  * [All Contributors](https://github.com/vpulim/node-soap/graphs/contributors)
@@ -579,3 +659,6 @@ describe('myService', function() {
 
 [gitter-url]: https://gitter.im/vpulim/node-soap
 [gitter-image]: https://badges.gitter.im/vpulim/node-soap.png
+
+[coveralls-url]: https://coveralls.io/r/vpulim/node-soap
+[coveralls-image]: http://img.shields.io/coveralls/vpulim/node-soap/master.svg

@@ -1,3 +1,42 @@
+0.13.0 / 2016-02-16
+=================
+* [FIX] Maintain `ignoredNamespaces` option when processing WSDL includes (#796)
+* [ENHANCEMENT] SOAP Headers for server response & `changeSoapHeader()` method for client & server (#792) 
+* [ENHANCEMENT] Added XML declaration (version & encoding) to client requests (#797)
+* [DOC] Added example for `server.options` to README, fixed typos in CONTRIBUTING (#798)
+* [FIX] Keep `nsContext` stack consistent even on recursive calls (#799)
+* [FIX] Prevent NPE when processing an empty children array (#789)
+
+0.12.0 / 2016-02-02
+=================
+* [MAINTENANCE] updating lodash to 3.x.x
+* [FIX] Schema overwrite when include a xsd with <xsd:include> (#788)
+
+0.11.4 / 2016-01-09
+=================
+* [MAINTENANCE] Adding coverage to project.
+
+0.11.3 / 2016-01-09
+=================
+* [ENHANCEMENT] Overriding the namespace prefix with empty prefix. (#779)
+* [FIX] Wrong namespace on elements when complexType has same name. (#781)
+* [FIX] Improved 'https' pattern matching for local files with name starting with 'http'. (#780)
+* [FIX] Handles SOAP result null output. (#778)
+
+0.11.2 / 2016-01-08
+=================
+* [FIX] Return null instead of empty object. (#733, #707, #784)
+* [DOC] Adds commas and semicolons to listen(...) example. (#782)
+* [MAINTENANCE] Temporarily skiping test from #768.
+
+0.11.1 / 2015-12-15
+=================
+* [ENHANCEMENT] Adding ClientSSLSecurityPFX for use in requests (#768)
+* [FIX] Remove SOAPAction http header in SOAP 1.2, extra header was causing some servers to trip. (#775)
+* [FIX] When an error occur, send HTTP 500 status code. (#774)
+* [FIX] Fixed issue when an error was undefined: undefined. (#771)
+* [FIX] Add missing type attribute for PasswordText in WSSecurity and update related tests. (#754)
+
 0.11.0 / 2015-10-31
 =================
 * [ENHANCEMENT] Now passing request to services in server.js. (#769)
